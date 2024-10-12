@@ -13,83 +13,88 @@
 #include <sys/wait.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdbool.h>
 
 /* Misc manifest constants */
 #define MAXLINE    1024   /* max line size */
 #define MAXARGS     128   /* max args on a command line */
 
 /* Global variables */
-extern char **environ;      /* defined in libc */
-char prompt[] = "tsh> ";    /* command line prompt (DO NOT CHANGE) */
-int verbose = 0;            /* if true, print additional output */
-char sbuf[MAXLINE];         /* for composing sprintf messages */
+extern char **environ; /* defined in libc */
+char prompt[] = "tsh> "; /* command line prompt (DO NOT CHANGE) */
+int verbose = 0; /* if true, print additional output */
+char sbuf[MAXLINE]; /* for composing sprintf messages */
 
 /* Function prototypes */
 
 /* Here are the functions that you will implement */
 void eval(char *cmdline);
+
 int builtin_cmd(char **argv);
 
 /* Here are helper routines that we've provided for you */
 int parseline(const char *cmdline, char **argv);
+
 int parseargs(char **argv, int *cmds, int *stdin_redir, int *stdout_redir);
 
 void usage(void);
+
 void unix_error(char *msg);
+
 void app_error(char *msg);
+
 typedef void handler_t(int);
 
 /*
  * main - The shell's main routine
  */
-int main(int argc, char **argv)
-{
-	int c;
-	char cmdline[MAXLINE];
-	int emit_prompt = 1; /* emit prompt (default) */
-	/* Redirect stderr to stdout (so that driver will get all output
-	 * on the pipe connected to stdout) */
-	dup2(1, 2);
+int main(int argc, char **argv) {
+    int c;
+    char cmdline[MAXLINE];
+    int emit_prompt = 1; /* emit prompt (default) */
+    /* Redirect stderr to stdout (so that driver will get all output
+     * on the pipe connected to stdout) */
+    dup2(1, 2);
 
-	/* Parse the command line */
-	while ((c = getopt(argc, argv, "hvp")) >= 0) {
-		switch (c) {
-			case 'h':             /* print help message */
-				usage();
-				break;
-			case 'v':             /* emit additional diagnostic info */
-				verbose = 1;
-				break;
-			case 'p':             /* don't print a prompt */
-				emit_prompt = 0;  /* handy for automatic testing */
-				break;
-			default:
-				usage();
-		}
-	}
+    /* Parse the command line */
+    while ((c = getopt(argc, argv, "hvp")) >= 0) {
+        switch (c) {
+            case 'h': /* print help message */
+                usage();
+                break;
+            case 'v': /* emit additional diagnostic info */
+                verbose = 1;
+                break;
+            case 'p': /* don't print a prompt */
+                emit_prompt = 0; /* handy for automatic testing */
+                break;
+            default:
+                usage();
+        }
+    }
 
-	/* Execute the shell's read/eval loop */
-	while (1) {
+    /* Execute the shell's read/eval loop */
+    while (1) {
+        /* Read command line */
+        if (emit_prompt) {
+            printf("%s", prompt);
+            fflush(stdout);
+        }
+        if ((fgets(cmdline, MAXLINE, stdin) == NULL) && ferror(stdin))
+            app_error("fgets error");
+        if (feof(stdin)) {
+            /* End of file (ctrl-d) */
+            fflush(stdout);
+            exit(0);
+        }
 
-		/* Read command line */
-		if (emit_prompt) {
-			printf("%s", prompt);
-			fflush(stdout);
-		}
-		if ((fgets(cmdline, MAXLINE, stdin) == NULL) && ferror(stdin))
-			app_error("fgets error");
-		if (feof(stdin)) { /* End of file (ctrl-d) */
-			fflush(stdout);
-			exit(0);
-		}
+        /* Evaluate the command line */
+        eval(cmdline);
+        fflush(stdout);
+        fflush(stdout);
+    }
 
-		/* Evaluate the command line */
-		eval(cmdline);
-		fflush(stdout);
-		fflush(stdout);
-	}
-
-	exit(0); /* control never reaches here */
+    exit(0); /* control never reaches here */
 }
 
 /*
@@ -122,76 +127,107 @@ int main(int argc, char **argv)
  * immediately. Otherwise, build a pipeline of commands and wait for all of
  * them to complete before returning.
 */
-void eval(char *cmdline)
-{
+void eval(char *cmdline) {
     // int fd = open("tsh.c", O_RDONLY);
     // close(fd);
-	char *argv[MAXARGS];
-	char buf[MAXLINE];
-	pid_t pid;
+    char *argv[MAXARGS];
+    char buf[MAXLINE];
+    pid_t pid;
 
-	strcpy(buf, cmdline);
-	int const bg = parseline(cmdline, argv);
-
-
-	int inputRedir[MAXARGS], outputRedir[MAXARGS], cmds[MAXARGS];
-	int const totalArgs = parseargs(argv, cmds, inputRedir, outputRedir);
-
-    if(!builtin_cmd(argv)) {
-	    for(int i = 0; i < totalArgs; i++)  {
-			if (i != totalArgs - 1) {
-				int pipefd[2];
-				if (pipe(pipefd) == -1) {
-					perror("pipe");
-					//exit(EXIT_FAILURE);
-				}
-			}
-			if((pid = fork()) == 0) {
-				int openedFD = -2;
-				if(inputRedir[i] + outputRedir[i] != -2) {
-					if(inputRedir[i] != -1) {
-						openedFD = open(argv[inputRedir[i]], O_RDONLY);
-						int redirectedOld = dup2(openedFD, STDIN_FILENO);
-						close(openedFD);
-					} else {
-						openedFD = open(argv[outputRedir[i]], O_WRONLY | O_CREAT | O_TRUNC, 0600);
-						int redirectedOld = dup2(openedFD, STDOUT_FILENO);
-						close(openedFD);
-					}
-				} else {
-
-				}
-				if(execve(argv[i], &argv[cmds[0]], environ) < 0) {
-					// printf("IO args: %d and %d\n", stdinNum[0], stdoutNum[0]);
-					printf("%s: Command not found. \n", argv[i]);
-					if(openedFD != -2) {
-						close(openedFD);
-					}
-					exit(0);
-				}
-
-			} else if(pid = -1) {
-				// perror("fork");
-				// exit(EXIT_FAILURE);
-			}
-			if(!bg) {
-				int status;
-				setpgid(pid,pid);
-				if(waitpid(pid, &status, 0) < 0) {
-					unix_error("waitfg: waitpid error");
-				}
-			} else {
-				printf("%d %s", pid, cmdline);
-			}
-
-			// printf("IO args (2): %d and %d to %d\n", stdinNum[1], stdoutNum[1], cmds[1]);
+    strcpy(buf, cmdline);
+    int const bg = parseline(cmdline, argv);
 
 
-		}
-	}
+    int inputRedir[MAXARGS], outputRedir[MAXARGS], cmds[MAXARGS];
+    int const totalCmds = parseargs(argv, cmds, inputRedir, outputRedir);
+
+    if (!builtin_cmd(argv)) {
+        int prevReadPipe = -1;
+        int pipefd[2];
+        bool lastCmd = (0 == totalCmds - 1);
+        int groupId = pid;
+        for (int i = 0; i < totalCmds; i++) {
+            lastCmd = (i == totalCmds - 1);
+            if (!lastCmd) {
+                if (pipe(pipefd) == -1) {
+                    perror("pipe");
+                    //exit(EXIT_FAILURE);
+                }
+            }
+            if ((pid = fork()) == 0) {
+                int openedFD = -2;
+                if (inputRedir[i] + outputRedir[i] != -2) {
+                    if (inputRedir[i] != -1) {
+                        openedFD = open(argv[inputRedir[i]], O_RDONLY);
+                        int redirectedOld = dup2(openedFD, STDIN_FILENO);
+                        close(openedFD);
+                    } else {
+                        openedFD = open(argv[outputRedir[i]], O_WRONLY | O_CREAT | O_TRUNC, 0600);
+                        int redirectedOld = dup2(openedFD, STDOUT_FILENO);
+                        close(openedFD);
+                    }
+                }
+
+                if (i == 0 && totalCmds != 1) { //first command, close read and open write
+                    close(pipefd[0]);
+                    dup2(pipefd[1], STDOUT_FILENO);
+                    close(pipefd[1]);
+                } else if (!lastCmd && i != 0) { // everything in the middle, bring read pipe to input and write pipe to output
+                    dup2(prevReadPipe, STDIN_FILENO);
+                    dup2(pipefd[1], STDOUT_FILENO);
+                    close(pipefd[1]);
+                    close(pipefd[0]);
+                    close(prevReadPipe);
+                } else if (totalCmds > 1) { // last command, close write
+                    dup2(prevReadPipe, STDIN_FILENO);
+                    close(prevReadPipe);
+                }
+
+                if (execve(argv[cmds[i]], &argv[cmds[i]], environ) < 0) {
+                    // printf("IO args: %d and %d\n", stdinNum[0], stdoutNum[0]);
+                    printf("%s: Command not found. \n", argv[i]);
+                    if (openedFD != -2) {
+                        close(openedFD);
+                    }
+                    exit(0);
+                }
+            } else if (pid == -1) {
+                perror("fork");
+                // exit(EXIT_FAILURE);
+            }
+            if (!bg) {
+
+                if (i == 0) {
+                    groupId = pid;
+                }
+                setpgid(pid, groupId);
+
+                if (!lastCmd) { //close the write end of the current pipe
+                    close(pipefd[1]);
+                }
+                if (i != 0 && totalCmds != 1) { //close the read end of the previous pipe
+                    close(prevReadPipe);
+                }
+                prevReadPipe = pipefd[0];
+                //	copy current pipe values to previous pipe array
 
 
-    return;
+
+            } else {
+                printf("%d %s", pid, cmdline);
+            }
+
+            // printf("IO args (2): %d and %d to %d\n", stdinNum[1], stdoutNum[1], cmds[1]);
+        }
+        int status;
+        for (int i = 0; i < totalCmds; i++) {
+            if (waitpid((-1 * groupId), &status, 0) < 0) {
+                unix_error("waitfg: waitpid error");
+            }
+        }
+    }
+
+
 }
 
 /*
@@ -210,49 +246,51 @@ void eval(char *cmdline)
  * the index in argv that holds the filename associated with the redirection.
  *
  */
-int parseargs(char **argv, int *cmds, int *stdin_redir, int *stdout_redir)
-{
-	int argindex = 0;    /* the index of the current argument in the current cmd */
-	int cmdindex = 0;    /* the index of the current cmd */
+int parseargs(char **argv, int *cmds, int *stdin_redir, int *stdout_redir) {
+    int argindex = 0; /* the index of the current argument in the current cmd */
+    int cmdindex = 0; /* the index of the current cmd */
 
-	if (!argv[argindex]) {
-		return 0;
-	}
+    if (!argv[argindex]) {
+        return 0;
+    }
 
-	cmds[cmdindex] = argindex;
-	stdin_redir[cmdindex] = -1;
-	stdout_redir[cmdindex] = -1;
-	argindex++;
-	while (argv[argindex]) {
-		if (strcmp(argv[argindex], "<") == 0) {
-			argv[argindex] = NULL;
-			argindex++;
-			if (!argv[argindex]) { /* if we have reached the end, then break */
-				break;
-			}
-			stdin_redir[cmdindex] = argindex;
-		} else if (strcmp(argv[argindex], ">") == 0) {
-			argv[argindex] = NULL;
-			argindex++;
-			if (!argv[argindex]) { /* if we have reached the end, then break */
-				break;
-			}
-			stdout_redir[cmdindex] = argindex;
-		} else if (strcmp(argv[argindex], "|") == 0) {
-			argv[argindex] = NULL;
-			argindex++;
-			if (!argv[argindex]) { /* if we have reached the end, then break */
-				break;
-			}
-			cmdindex++;
-			cmds[cmdindex] = argindex;
-			stdin_redir[cmdindex] = -1;
-			stdout_redir[cmdindex] = -1;
-		}
-		argindex++;
-	}
+    cmds[cmdindex] = argindex;
+    stdin_redir[cmdindex] = -1;
+    stdout_redir[cmdindex] = -1;
+    argindex++;
+    while (argv[argindex]) {
+        if (strcmp(argv[argindex], "<") == 0) {
+            argv[argindex] = NULL;
+            argindex++;
+            if (!argv[argindex]) {
+                /* if we have reached the end, then break */
+                break;
+            }
+            stdin_redir[cmdindex] = argindex;
+        } else if (strcmp(argv[argindex], ">") == 0) {
+            argv[argindex] = NULL;
+            argindex++;
+            if (!argv[argindex]) {
+                /* if we have reached the end, then break */
+                break;
+            }
+            stdout_redir[cmdindex] = argindex;
+        } else if (strcmp(argv[argindex], "|") == 0) {
+            argv[argindex] = NULL;
+            argindex++;
+            if (!argv[argindex]) {
+                /* if we have reached the end, then break */
+                break;
+            }
+            cmdindex++;
+            cmds[cmdindex] = argindex;
+            stdin_redir[cmdindex] = -1;
+            stdout_redir[cmdindex] = -1;
+        }
+        argindex++;
+    }
 
-	return cmdindex + 1;
+    return cmdindex + 1;
 }
 
 /*
@@ -262,73 +300,69 @@ int parseargs(char **argv, int *cmds, int *stdin_redir, int *stdout_redir)
  * argument.  Return true if the user has requested a BG job, false if
  * the user has requested a FG job.
  */
-int parseline(const char *cmdline, char **argv)
-{
-	static char array[MAXLINE]; /* holds local copy of command line */
-	char *buf = array;          /* ptr that traverses command line */
-	char *delim;                /* points to first space delimiter */
-	int argc;                   /* number of args */
-	int bg;                     /* background job? */
+int parseline(const char *cmdline, char **argv) {
+    static char array[MAXLINE]; /* holds local copy of command line */
+    char *buf = array; /* ptr that traverses command line */
+    char *delim; /* points to first space delimiter */
+    int argc; /* number of args */
+    int bg; /* background job? */
 
-	strcpy(buf, cmdline);
-	buf[strlen(buf)-1] = ' ';  /* replace trailing '\n' with space */
-	while (*buf && (*buf == ' ')) /* ignore leading spaces */
-		buf++;
+    strcpy(buf, cmdline);
+    buf[strlen(buf) - 1] = ' '; /* replace trailing '\n' with space */
+    while (*buf && (*buf == ' ')) /* ignore leading spaces */
+        buf++;
 
-	/* Build the argv list */
-	argc = 0;
-	if (*buf == '\'') {
-		buf++;
-		delim = strchr(buf, '\'');
-	}
-	else {
-		delim = strchr(buf, ' ');
-	}
+    /* Build the argv list */
+    argc = 0;
+    if (*buf == '\'') {
+        buf++;
+        delim = strchr(buf, '\'');
+    } else {
+        delim = strchr(buf, ' ');
+    }
 
-	while (delim) {
-		argv[argc++] = buf;
-		*delim = '\0';
-		buf = delim + 1;
-		while (*buf && (*buf == ' ')) /* ignore spaces */
-			buf++;
+    while (delim) {
+        argv[argc++] = buf;
+        *delim = '\0';
+        buf = delim + 1;
+        while (*buf && (*buf == ' ')) /* ignore spaces */
+            buf++;
 
-		if (*buf == '\'') {
-			buf++;
-			delim = strchr(buf, '\'');
-		}
-		else {
-			delim = strchr(buf, ' ');
-		}
-	}
-	argv[argc] = NULL;
+        if (*buf == '\'') {
+            buf++;
+            delim = strchr(buf, '\'');
+        } else {
+            delim = strchr(buf, ' ');
+        }
+    }
+    argv[argc] = NULL;
 
-	if (argc == 0)  /* ignore blank line */
-		return 1;
+    if (argc == 0) /* ignore blank line */
+        return 1;
 
-	/* should the job run in the background? */
-	if ((bg = (*argv[argc-1] == '&')) != 0) {
-		argv[--argc] = NULL;
-	}
-	return bg;
+    /* should the job run in the background? */
+    if ((bg = (*argv[argc - 1] == '&')) != 0) {
+        argv[--argc] = NULL;
+    }
+    return bg;
 }
 
 /*
  * builtin_cmd - If the user has typed a built-in command then execute
  *    it immediately.
  */
-int builtin_cmd(char **argv)
-{
-	char *compare1 = argv[0];
-	if(argv[0] != '\0') {
-		if(strcmp(compare1, "quit") == 0){
-			exit(0);
-			return 1;
-		} else if(strcmp(compare1, "test") == 0) {
-			printf("yetah\n");
-			return 1;
-		}
-	}
-	return 0;     /* not a builtin command */
+int builtin_cmd(char **argv) {
+    char *compare1 = argv[0];
+    if (argv[0] != '\0') {
+        if (strcmp(compare1, "quit") == 0) {
+            exit(0);
+            return 1;
+        } else if (strcmp(compare1, "test") == 0) {
+            printf("yetah\n");
+            return 1;
+        }
+    }
+    return 0; /* not a builtin command */
 }
 
 /***********************
@@ -338,30 +372,26 @@ int builtin_cmd(char **argv)
 /*
  * usage - print a help message
  */
-void usage(void)
-{
-	printf("Usage: shell [-hvp]\n");
-	printf("   -h   print this message\n");
-	printf("   -v   print additional diagnostic information\n");
-	printf("   -p   do not emit a command prompt\n");
-	exit(1);
+void usage(void) {
+    printf("Usage: shell [-hvp]\n");
+    printf("   -h   print this message\n");
+    printf("   -v   print additional diagnostic information\n");
+    printf("   -p   do not emit a command prompt\n");
+    exit(1);
 }
 
 /*
  * unix_error - unix-style error routine
  */
-void unix_error(char *msg)
-{
-	fprintf(stdout, "%s: %s\n", msg, strerror(errno));
-	exit(1);
+void unix_error(char *msg) {
+    fprintf(stdout, "%s: %s\n", msg, strerror(errno));
+    exit(1);
 }
 
 /*
  * app_error - application-style error routine
  */
-void app_error(char *msg)
-{
-	fprintf(stdout, "%s\n", msg);
-	exit(1);
+void app_error(char *msg) {
+    fprintf(stdout, "%s\n", msg);
+    exit(1);
 }
-
