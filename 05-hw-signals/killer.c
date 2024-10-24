@@ -28,24 +28,109 @@ int main(int argc, char *argv[]) {
 
 	switch (scenario[0]) {
 	case '0':
+		kill(pid, SIGHUP);
+		sleep(1);
 		break;
 	case '1':
+		kill(pid, 12);
+		sleep(1);
+		kill(pid, SIGTERM);
+		sleep(1);
 		break;
 	case '2':
+		kill(pid,SIGHUP);
+		sleep(6);
+		kill(pid, 12);
+		sleep(1);
+		kill(pid, SIGTERM);
+		sleep(1);
 		break;
 	case '3':
+		kill(pid, SIGHUP);
+		sleep(1);
+		kill(pid, 31);
+		sleep(1);
+		kill(pid,SIGHUP);
+		sleep(1);
+		kill(pid, 12);
+		sleep(1);
+		kill(pid, SIGTERM);
+		sleep(1);
 		break;
 	case '4':
+		kill(pid, SIGHUP);
+		sleep(1);
+		kill(pid,SIGINT);
+		sleep(1);
+		kill(pid, 12);
+		sleep(1);
+		kill(pid, SIGTERM);
+		sleep(1);
 		break;
 	case '5':
+		kill(pid, 12);
+		sleep(1);
+		kill(pid, SIGHUP);
+		sleep(1);
+		kill(pid, SIGTERM);
+		sleep(1);
 		break;
 	case '6':
+		kill(pid,SIGHUP);
+		sleep(5);
+		kill(pid, 10);
+		sleep(1);
+		kill(pid, 16);
+		sleep(1);
+		kill(pid, 12);
+		sleep(1);
+		kill(pid, SIGTERM);
+		sleep(1);
 		break;
 	case '7':
+		kill(pid,SIGHUP);
+		sleep(6);
+		kill(pid, 12);
+		sleep(1);
+		kill(pid, 10);
+		sleep(1);
+		kill(pid, SIGTERM);
+		sleep(1);
 		break;
 	case '8':
+		kill(pid,SIGHUP);
+		sleep(6);
+		kill(pid, 31);
+		sleep(1);
+		kill(pid, 10);// fork, 7
+		sleep(1);
+		kill(pid, 30);// set 6
+		sleep(1);
+		kill(pid, 16);// WNOHANG, interrupt the fork's return of 7
+		sleep(1);
+		kill(pid, 30);// set 6
+		sleep(1);
+		kill(pid,SIGTERM);
+		sleep(1);
+		kill(pid, 12);
+		sleep(1);
+		kill(pid, SIGTERM);
+		sleep(1);
+		kill(pid, 31);
+		sleep(1);
+		
 		break;
 	case '9': 
+		kill(pid, 31);
+		sleep(2);
+		kill(pid, SIGQUIT);
+		sleep(1);
+		kill(pid, 31);
+		sleep(2);
+		kill(pid, 12);
+		sleep(1);
+		kill(pid, SIGTERM);
+		sleep(1);
 		break;
 
 	}

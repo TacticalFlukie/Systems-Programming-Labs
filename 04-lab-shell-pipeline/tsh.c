@@ -93,8 +93,6 @@ int main(int argc, char **argv) {
         fflush(stdout);
         fflush(stdout);
     }
-
-    exit(0); /* control never reaches here */
 }
 
 /*
@@ -132,7 +130,7 @@ void eval(char *cmdline) {
     // close(fd);
     char *argv[MAXARGS];
     char buf[MAXLINE];
-    pid_t pid;
+    pid_t pid = -1;
 
     strcpy(buf, cmdline);
     int const bg = parseline(cmdline, argv);
@@ -144,7 +142,7 @@ void eval(char *cmdline) {
     if (!builtin_cmd(argv)) {
         int prevReadPipe = -1;
         int pipefd[2];
-        bool lastCmd = (0 == totalCmds - 1);
+        bool lastCmd = 0;
         int groupId = pid;
         for (int i = 0; i < totalCmds; i++) {
             lastCmd = (i == totalCmds - 1);
@@ -159,11 +157,12 @@ void eval(char *cmdline) {
                 if (inputRedir[i] + outputRedir[i] != -2) {
                     if (inputRedir[i] != -1) {
                         openedFD = open(argv[inputRedir[i]], O_RDONLY);
-                        int redirectedOld = dup2(openedFD, STDIN_FILENO);
+                        dup2(openedFD, STDIN_FILENO);
                         close(openedFD);
-                    } else {
+                    }
+                    if (outputRedir[i] != -1) {
                         openedFD = open(argv[outputRedir[i]], O_WRONLY | O_CREAT | O_TRUNC, 0600);
-                        int redirectedOld = dup2(openedFD, STDOUT_FILENO);
+                        dup2(openedFD, STDOUT_FILENO);
                         close(openedFD);
                     }
                 }
@@ -353,13 +352,10 @@ int parseline(const char *cmdline, char **argv) {
  */
 int builtin_cmd(char **argv) {
     char *compare1 = argv[0];
-    if (argv[0] != '\0') {
+    if (argv[0] != NULL) {
         if (strcmp(compare1, "quit") == 0) {
             exit(0);
-            return 1;
-        } else if (strcmp(compare1, "test") == 0) {
-            printf("yetah\n");
-            return 1;
+
         }
     }
     return 0; /* not a builtin command */
