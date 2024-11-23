@@ -1,9 +1,13 @@
 // Replace PUT_USERID_HERE with your actual BYU CS user id, which you can find
 // by running `id -u` on a CS lab machine.
 #define USERID 1823701865
+// #define USERID 123456789
+#define BUFFSIZE 16
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <arpa/inet.h>
 
 #include "sockhelper.h"
 
@@ -30,6 +34,29 @@ int main(int argc, char *argv[]) {
 	printf("level: %d \n", level);
 	printf("seed: %d \n", seed);
 	fflush(stdout);
+
+	unsigned char message[8];
+	/*
+	* Byte 0 is 0 always,
+	* Byte 1 is level as an int
+	*/
+	message[0] = 0x0;
+	message[1] = level;
+
+	/*
+	* Bytes 2-5: USERID in hex, put into network order (big endian)
+	*/
+	unsigned int val = htonl(USERID); 
+	memcpy(&message[2], &val, sizeof(unsigned int));
+
+	/*
+	* Bytes 6-7: Seed used for RNG in network order (big endian)
+	*/
+	unsigned short val2 = htons(seed);
+	memcpy(&message[6], &val2, sizeof(unsigned short));	
+
+	print_bytes(message, 8);
+
 
 }
 
