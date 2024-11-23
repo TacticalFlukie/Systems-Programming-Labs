@@ -3,6 +3,7 @@
 #define USERID 1823701865
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "sockhelper.h"
 
@@ -11,8 +12,27 @@ int verbose = 0;
 void print_bytes(unsigned char *bytes, int byteslen);
 
 int main(int argc, char *argv[]) {
+	printf("\n");
+	int port, level, seed = -1;
+	char* server;
+	if(argc < 5) {
+		printf("ERROR: Not enough arguments!\n");
+		printf("Syntax: ./treasure_hunter server port level seed\n\n");
+		exit(1);
+	}
+	server = argv[1];
+	port = atoi(argv[2]);
+	level = atoi(argv[3]);
+	seed = atoi(argv[4]);
+
+	printf("Server: %s \n", server);
+	printf("port: %d \n", port);
+	printf("level: %d \n", level);
+	printf("seed: %d \n", seed);
+	fflush(stdout);
+
 }
- 
+
 void print_bytes(unsigned char *bytes, int byteslen) {
 	int i, j, byteslen_adjusted;
 
