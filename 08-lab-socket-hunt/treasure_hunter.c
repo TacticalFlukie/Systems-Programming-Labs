@@ -12,7 +12,7 @@ void print_bytes(unsigned char *bytes, int byteslen);
 
 int main(int argc, char *argv[]) {
 }
-
+ 
 void print_bytes(unsigned char *bytes, int byteslen) {
 	int i, j, byteslen_adjusted;
 
