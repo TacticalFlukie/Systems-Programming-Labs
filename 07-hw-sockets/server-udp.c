@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	unsigned short port = atoi(argv[portindex]);
-	int sock_type = SOCK_STREAM;
+	int sock_type = SOCK_DGRAM;
 
 	/* SECTION A - populate address structures */
 
@@ -70,49 +70,40 @@ int main(int argc, char *argv[]) {
 	/* SECTION C - interact with clients; receive and send messages */
 
 	// Read datagrams and echo them back to sender
-	listen(sfd,100);
-	int acceptfd = -420;
-	while(1){
+	while (1) {
+		char buf[BUF_SIZE];
+
+		// Declare structures for remote address and port.
+		// See notes above for local_addr_ss and local_addr_ss.
 		struct sockaddr_storage remote_addr_ss;
-		socklen_t addr_len = sizeof(struct sockaddr_storage);
 		struct sockaddr *remote_addr = (struct sockaddr *)&remote_addr_ss;
-		acceptfd = accept(sfd, remote_addr, &addr_len);
-		while (1) {
-			char buf[BUF_SIZE];
+		char remote_ip[INET6_ADDRSTRLEN];
+		unsigned short remote_port;
 
-			// Declare structures for remote address and port.
-			// See notes above for local_addr_ss and local_addr_ss.
-			struct sockaddr_storage remote_addr_ss;
-			struct sockaddr *remote_addr = (struct sockaddr *)&remote_addr_ss;
-			char remote_ip[INET6_ADDRSTRLEN];
-			unsigned short remote_port;
+		// NOTE: addrlen needs to be initialized before every call to
+		// recvfrom().  See the man page for recvfrom().
+		socklen_t addr_len = sizeof(struct sockaddr_storage);
 
-			// NOTE: addrlen needs to be initialized before every call to
-			// recvfrom().  See the man page for recvfrom().
-			socklen_t addr_len = sizeof(struct sockaddr_storage);
+		// printf("before recvfrom()\n"); fflush(stdout);
+		ssize_t nread = recvfrom(sfd, buf, BUF_SIZE, 0,remote_addr, &addr_len);
+		// sleep(5);
+		// printf("after recvfrom()\n"); fflush(stdout);
+		printf("I "); fflush(stdout);
 
-			// printf("before recvfrom()\n"); fflush(stdout);
-			ssize_t nread = recv(acceptfd, buf, 1, 0);
-			sleep(2);
-			// printf("after recvfrom()\n"); fflush(stdout);
-			if (nread < 0) {
-				perror("receiving message");
-				exit(EXIT_FAILURE);
-			} 
-			// else if (nread == 0) {
-			// 	close(acceptfd);
-			// 	break;
-			// }
+		if (nread < 0) {
+			perror("receiving message");
+			exit(EXIT_FAILURE);
+		}
 
-			// Extract the IP address and port from remote_addr using
-			// parse_sockaddr().  parse_sockaddr() is defined in
-			// ../code/sockhelper.c.
-			parse_sockaddr(remote_addr, remote_ip, &remote_port);
-			printf("Received %zd bytes from %s:%d\n", nread, remote_ip, remote_port);
+		// Extract the IP address and port from remote_addr using
+		// parse_sockaddr().  parse_sockaddr() is defined in
+		// ../code/sockhelper.c.
+		parse_sockaddr(remote_addr, remote_ip, &remote_port);
+		printf("Received %zd bytes from %s:%d\n",
+				nread, remote_ip, remote_port);
 
-			if (send(acceptfd, buf, nread, 0) < 0) {
-				perror("sending response");
-			}
+		if (sendto(sfd, buf, nread, 0, remote_addr, addr_len) < 0) {
+			perror("sending response");
 		}
 	}
 }

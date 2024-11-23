@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
 	// was passed in on the command line.
 	hints.ai_family = af;
 	// Use type SOCK_DGRAM (UDP)
-	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_socktype = SOCK_DGRAM;
 
 
 	/* SECTION A - pre-socket setup; getaddrinfo() */
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
 
 		// If connect() succeeds, then break out of the loop; we will
 		// use the current address as our remote address.
-		if (connect(sfd, remote_addr, addr_len) >= 0)
+		// if (connect(sfd, remote_addr, addr_len) >= 0)
 			break;
 
 		close(sfd);
@@ -168,14 +168,9 @@ int main(int argc, char *argv[]) {
 			continue;
 		}
 
-		ssize_t nwritten = send(sfd, argv[j], len, 0);
+		// ssize_t nwritten = send(sfd, argv[j], len, 0);
+		ssize_t nwritten = sendto(sfd, argv[j], len, 0, remote_addr, addr_len);
 
-		s = getsockname(sfd, local_addr, &addr_len);
-		// Extract the IP address and port from remote_addr using
-		// parse_sockaddr().  parse_sockaddr() is defined in
-		// ../code/sockhelper.c.
-		parse_sockaddr(local_addr, local_ip, &local_port);
-		fprintf(stderr, "Local socket info: %s:%d (addr family: %d)\n",local_ip, local_port, addr_fam);
 		if (nwritten < 0) {
 			perror("send");
 			exit(EXIT_FAILURE);
