@@ -72,37 +72,44 @@ int main(int argc, char *argv[]) {
 	// Read datagrams and echo them back to sender
 	listen(sfd,100);
 	int acceptfd = -420;
-	while(1){
+	while(1) {
 		struct sockaddr_storage remote_addr_ss;
 		socklen_t addr_len = sizeof(struct sockaddr_storage);
 		struct sockaddr *remote_addr = (struct sockaddr *)&remote_addr_ss;
 		acceptfd = accept(sfd, remote_addr, &addr_len);
+		sleep(3);
+		char remote_ip[INET6_ADDRSTRLEN];
+		unsigned short remote_port;
 		while (1) {
 			char buf[BUF_SIZE];
 
 			// Declare structures for remote address and port.
 			// See notes above for local_addr_ss and local_addr_ss.
-			struct sockaddr_storage remote_addr_ss;
-			struct sockaddr *remote_addr = (struct sockaddr *)&remote_addr_ss;
-			char remote_ip[INET6_ADDRSTRLEN];
-			unsigned short remote_port;
+			// struct sockaddr_storage remote_addr_ss;
+			// struct sockaddr *remote_addr = (struct sockaddr *)&remote_addr_ss;
+			// char remote_ip[INET6_ADDRSTRLEN];
+			// unsigned short remote_port;
 
 			// NOTE: addrlen needs to be initialized before every call to
 			// recvfrom().  See the man page for recvfrom().
-			socklen_t addr_len = sizeof(struct sockaddr_storage);
+			// socklen_t addr_len = sizeof(struct sockaddr_storage);
 
 			// printf("before recvfrom()\n"); fflush(stdout);
 			ssize_t nread = recv(acceptfd, buf, 1, 0);
-			sleep(2);
+			// sleep(1);
 			// printf("after recvfrom()\n"); fflush(stdout);
 			if (nread < 0) {
+				printf("AHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH\n");
+				fflush(NULL);
 				perror("receiving message");
 				exit(EXIT_FAILURE);
 			} 
-			// else if (nread == 0) {
-			// 	close(acceptfd);
-			// 	break;
-			// }
+			else if (nread == 0) {
+				printf("sdfgh\n");
+				fflush(NULL);
+				close(acceptfd);
+				break;
+			}
 
 			// Extract the IP address and port from remote_addr using
 			// parse_sockaddr().  parse_sockaddr() is defined in

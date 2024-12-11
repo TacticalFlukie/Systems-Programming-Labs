@@ -13,7 +13,7 @@
 
 int main(int argc, char *argv[]) {
 
-	/* Check usage */
+	/* Check usage */  
 	if (argc < 3 ||
 		((strcmp(argv[1], "-4") == 0 || strcmp(argv[1], "-6") == 0) &&
 			argc < 4)) {
@@ -53,8 +53,7 @@ int main(int argc, char *argv[]) {
 
 	struct addrinfo *result;
 	int s;
-	s = getaddrinfo(argv[hostindex],
-			argv[hostindex + 1], &hints, &result);
+	s = getaddrinfo(argv[hostindex], argv[hostindex + 1], &hints, &result);
 	if (s != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
 		exit(EXIT_FAILURE);
@@ -117,8 +116,7 @@ int main(int argc, char *argv[]) {
 		// using parse_sockaddr().  parse_sockaddr() is defined in
 		// ../code/sockhelper.c.
 		parse_sockaddr(remote_addr, remote_ip, &remote_port);
-		fprintf(stderr, "Connecting to %s:%d (addr family: %d)\n",
-				remote_ip, remote_port, addr_fam);
+		fprintf(stderr, "Connecting to %s:%d (addr family: %d)\n", remote_ip, remote_port, addr_fam);
 
 		// If connect() succeeds, then break out of the loop; we will
 		// use the current address as our remote address.

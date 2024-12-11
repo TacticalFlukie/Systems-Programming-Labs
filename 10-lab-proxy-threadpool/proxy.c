@@ -1,6 +1,13 @@
 #include <stdio.h>
 
 #include "sockhelper.h"
+#include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 /* Recommended max object size */
 #define MAX_OBJECT_SIZE 102400
@@ -11,21 +18,115 @@ int complete_request_received(char *);
 void parse_request(char *, char *, char *, char *, char *);
 void test_parser();
 void print_bytes(unsigned char *, int);
+int open_sfd();
 
+struct addrinfo hints;
+#define BUF_SIZE 500
 
 int main(int argc, char *argv[])
 {
-	test_parser();
+	// test_parser();
 	printf("%s\n", user_agent_hdr);
 	return 0;
 }
 
+/*
+*Returns fd of new socket on success, -1 on failure
+*/
+int open_sfd()
+{
+	// Initialize everything to 0
+	memset(&hints, 0, sizeof(struct addrinfo));
+	// Set the address family to AF_INET (IPv4-only)
+	int addr_fam = AF_INET;
+	// Use type SOCK_DGRAM (UDP)
+	int sock_type = SOCK_STREAM;
+
+	int sfd;
+	if ((sfd = socket(addr_fam, sock_type, 0)) < 0) {
+		perror("Error creating socket");
+		exit(EXIT_FAILURE);
+	}
+
+	int optval = 1;
+	setsockopt(sfd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
+
+	return -1;
+}
+
 int complete_request_received(char *request) {
-	return 0;
+	char *i = strstr(request, "\r\n\r\n");
+	if(i == NULL){
+		return 0;
+	} else {
+		// printf("gottem\n");
+		return 1;
+	}
 }
 
 void parse_request(char *request, char *method,
 		char *hostname, char *port, char *path) {
+		
+		//REQUEST
+		char *endOfMethod = strstr(request, " ");
+		endOfMethod += 1;
+		strncpy(method, request, (endOfMethod - request));
+		method[endOfMethod - request] = '\0';
+		
+		//URL
+		char *endOfURL = strstr(endOfMethod, " ");
+		endOfURL += 1;
+
+		//PORT
+		char *startOfPort = strstr(endOfMethod, "://");
+		char *endOfLine = strstr(endOfMethod, "\r\n");
+		if(startOfPort != NULL)
+		{
+			startOfPort++;
+			startOfPort = strstr(startOfPort, ":");
+		}
+		if(startOfPort == NULL) 
+		{
+			printf("OHNO");
+			exit(-1);
+		}
+		if(startOfPort > endOfLine) { //TYPE TWO
+			char *temp = "80";
+			strncpy(port, temp, 3);
+
+			//HOSTNAME
+			char *startOfHostname = strstr(endOfMethod, "://");
+			startOfHostname += 3;
+			char *endOfHostname = strstr(startOfHostname, "/");
+			strncpy(hostname, startOfHostname, (endOfHostname - startOfHostname));
+			hostname[(endOfHostname - startOfHostname)] = '\0';
+			
+			//PATH
+			strncpy(path, endOfHostname, (endOfLine - endOfHostname));
+			path[(endOfLine - endOfHostname)] = '\0';
+
+
+		} else { // TYPE ONE
+			//startOfPort goes up because its non inclusive, endOfPort doesn't because path includes the '/' in the value
+			startOfPort++;
+			char *endOfPort = strstr(startOfPort, "/");
+			strncpy(port, startOfPort, (endOfPort - startOfPort));
+			port[endOfPort - startOfPort] = '\0';
+
+			//HOSTNAME
+			char *startOfHostname = strstr(endOfMethod, "://");
+			if(startOfHostname != NULL) 
+			{
+				startOfHostname += 3;
+				char *endOfHostname = strstr(startOfHostname, ":");
+				strncpy(hostname, startOfHostname, (endOfHostname - startOfHostname));
+				hostname[(endOfHostname - startOfHostname)] = '\0';
+			}
+			
+			//PATH
+			strncpy(path, endOfPort, (endOfLine - endOfPort));
+			path[(endOfLine - endOfPort)] = '\0';
+		}		
 }
 
 void test_parser() {
@@ -62,6 +163,7 @@ void test_parser() {
 			printf("HOSTNAME: %s\n", hostname);
 			printf("PORT: %s\n", port);
 			printf("PATH: %s\n", path);
+			printf("---------------------------------------------------------------------\n");
 		} else {
 			printf("REQUEST INCOMPLETE\n");
 		}
