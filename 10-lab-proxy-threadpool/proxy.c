@@ -20,7 +20,7 @@ void parse_request(char *, char *, char *, char *, char *);
 void test_parser();
 void print_bytes(unsigned char *, int);
 int open_sfd(int port);
-void handle_client(int fd);
+void handle_client(int fd, char *stre);
 
 
 struct addrinfo hints;
@@ -37,7 +37,10 @@ int main(int argc, char *argv[])
 		socklen_t addr_len = sizeof(struct sockaddr_storage);
 		struct sockaddr *remote_addr = (struct sockaddr *)&remote_addr_ss;
 		acceptfd = accept(sfd, remote_addr, &addr_len);
-		handle_client(acceptfd);
+		char str[BUF_SIZE];
+		handle_client(acceptfd, str);
+		printf("%s\n", str);
+		printf("---------------------------------------------\n");
 	}
 	
 	printf("%s\n", user_agent_hdr);
@@ -81,10 +84,11 @@ int open_sfd(int port)
 	return sfd;
 }
 
-void handle_client(int fd)
+void handle_client(int fd, char *str)
 {
 	char buf[BUF_SIZE];
 	// printf("sfd: %d",fd);
+
 	while(1) {
 		int nread = recv(fd, buf, 1024, 0);
 		if(nread == 0) {
@@ -94,20 +98,96 @@ void handle_client(int fd)
 			perror("read");
 			exit(EXIT_FAILURE);
 		}
-		printf("nread: %d", nread);
+		// printf("nread: %d", nread);
 		buf[nread] = '\0';
-		print_bytes((unsigned char *)buf, nread);
+		// print_bytes((unsigned char *)buf, nread);
 		char method[16], hostname[64], port[8], path[64];
 		parse_request(buf, method, hostname, port, path);
-		printf("method:%s\n", method);
-		printf("hostname:%s\n", hostname);
-		printf("port:%s\n",port);
-		printf("path:%s\n", path);
+
+		int curr = 0;
+
+		{
+			strcpy(&str[curr], method);
+			curr = strlen(method);
+			strcpy(&str[curr], path);
+			curr += strlen(path);
+			str[curr] = '\r';
+			curr++;
+			str[curr] = '\n';
+			curr++;
+			// strcpy(&str[curr], hostname);
+			// curr += strlen(hostname);
+			
+			//LINE 2: HOST
+			if(atoi(port) == 80){
+				char temp[] = "Host: ";
+				strcpy(&str[curr], &temp[0]);
+				curr += strlen(temp);
+				strcpy(&str[curr], hostname);
+				curr += strlen(hostname);
+			} else {
+				char temp[] = "Host: ";
+				strcpy(&str[curr], &temp[0]);
+				curr += strlen(temp);
+				strcpy(&str[curr], hostname);
+				curr += strlen(hostname);
+				str[curr] = ':';
+				curr++;
+				strcpy(&str[curr], port);
+				curr += strlen(port);
+			}
+			str[curr] = '\r';
+			curr++;
+			str[curr] = '\n';
+			curr++;
+
+			//LINE 3: USERAGENT
+			{
+				char temp[] = "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:68.0) Gecko/20100101 Firefox/68.0\r\n";
+				strcpy(&str[curr], &temp[0]);
+				curr += strlen(temp);
+			}
+
+			//LINE 4: CONNECTION
+			{
+				char temp[] = "Connection: close";
+				strcpy(&str[curr], &temp[0]);
+				curr += strlen(temp);
+			}
+			str[curr] = '\r';
+			curr++;
+			str[curr] = '\n';
+			curr++;
+
+			//LINE 5: PROXY-CONNECTION
+			{
+				char temp[] = "Proxy-Connection: close";
+				strcpy(&str[curr], &temp[0]);
+				curr += strlen(temp);
+			}
+			str[curr] = '\r';
+			curr++;
+			str[curr] = '\n';
+			curr++;
+
+			//LINE LAST: End Of String Char
+			str[curr] = '\0';
+		}
+
+		// printf("NEWREQUEST:\n%s\n", str);
+
+		// printf("method:%s\n", method);
+		// printf("hostname:%s\n", hostname);
+		// printf("port:%s\n",port);
+		// printf("path:%s\n", path);
+
+		//MORE MORE MORE ITS CHECKPOINT 3, COMMUNICATE WITH SERVER TIME BABY!
+
 		close(fd);
 		break;
 	}
 
-	
+	return;
 }
 
 int complete_request_received(char *request) {
@@ -139,7 +219,10 @@ void parse_request(char *request, char *method,
 		if(startOfPort != NULL)
 		{
 			startOfPort++;
-			startOfPort = strstr(startOfPort, ":");
+			if (strstr(startOfPort, ":") == NULL) {
+				startOfPort = endOfLine + 1;
+			} else
+				startOfPort = strstr(startOfPort, ":");
 		}
 		if(startOfPort == NULL) 
 		{
@@ -181,6 +264,7 @@ void parse_request(char *request, char *method,
 			
 			//PATH
 			strncpy(path, endOfPort, (endOfLine - endOfPort));
+			path[(endOfLine - endOfPort) - 1] = '0';
 			path[(endOfLine - endOfPort)] = '\0';
 		}		
 }
