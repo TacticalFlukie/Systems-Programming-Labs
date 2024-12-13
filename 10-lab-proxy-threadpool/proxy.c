@@ -11,6 +11,7 @@
 
 /* Recommended max object size */
 #define MAX_OBJECT_SIZE 102400
+#define BUF_SIZE 1024
 
 static const char *user_agent_hdr = "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:97.0) Gecko/20100101 Firefox/97.0";
 
@@ -18,22 +19,35 @@ int complete_request_received(char *);
 void parse_request(char *, char *, char *, char *, char *);
 void test_parser();
 void print_bytes(unsigned char *, int);
-int open_sfd();
+int open_sfd(int port);
+void handle_client(int fd);
+
 
 struct addrinfo hints;
-#define BUF_SIZE 500
 
 int main(int argc, char *argv[])
 {
 	// test_parser();
+	int sfd = open_sfd(atoi(argv[1]));
+	
+	listen(sfd,100);
+	int acceptfd = -420;
+	while(1) {
+		struct sockaddr_storage remote_addr_ss;
+		socklen_t addr_len = sizeof(struct sockaddr_storage);
+		struct sockaddr *remote_addr = (struct sockaddr *)&remote_addr_ss;
+		acceptfd = accept(sfd, remote_addr, &addr_len);
+		handle_client(acceptfd);
+	}
+	
 	printf("%s\n", user_agent_hdr);
 	return 0;
 }
 
 /*
-*Returns fd of new socket on success, -1 on failure
+*Returns fd of new socket on success, exit on failure?
 */
-int open_sfd()
+int open_sfd(int port)
 {
 	// Initialize everything to 0
 	memset(&hints, 0, sizeof(struct addrinfo));
@@ -45,13 +59,55 @@ int open_sfd()
 	int sfd;
 	if ((sfd = socket(addr_fam, sock_type, 0)) < 0) {
 		perror("Error creating socket");
+		printf("UH OH\n");
+		fflush(NULL);
 		exit(EXIT_FAILURE);
 	}
 
 	int optval = 1;
 	setsockopt(sfd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
 
-	return -1;
+	struct sockaddr_storage local_addr_ss;
+	struct sockaddr *local_addr = (struct sockaddr *)&local_addr_ss;
+
+	// Populate local_addr with the port using populate_sockaddr().
+	populate_sockaddr(local_addr, addr_fam, NULL, port);
+
+	if (bind(sfd, local_addr, sizeof(struct sockaddr_storage)) < 0) {
+		perror("Could not bind");
+		exit(EXIT_FAILURE);
+	}
+
+	return sfd;
+}
+
+void handle_client(int fd)
+{
+	char buf[BUF_SIZE];
+	// printf("sfd: %d",fd);
+	while(1) {
+		int nread = recv(fd, buf, 1024, 0);
+		if(nread == 0) {
+			close(fd);
+			break;
+		} else if (nread < 0) {
+			perror("read");
+			exit(EXIT_FAILURE);
+		}
+		printf("nread: %d", nread);
+		buf[nread] = '\0';
+		print_bytes((unsigned char *)buf, nread);
+		char method[16], hostname[64], port[8], path[64];
+		parse_request(buf, method, hostname, port, path);
+		printf("method:%s\n", method);
+		printf("hostname:%s\n", hostname);
+		printf("port:%s\n",port);
+		printf("path:%s\n", path);
+		close(fd);
+		break;
+	}
+
+	
 }
 
 int complete_request_received(char *request) {

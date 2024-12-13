@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
 			// ../code/sockhelper.c.
 			parse_sockaddr(remote_addr, remote_ip, &remote_port);
 			printf("Received %zd bytes from %s:%d\n", nread, remote_ip, remote_port);
-
+			
 			if (send(acceptfd, buf, nread, 0) < 0) {
 				perror("sending response");
 			}
